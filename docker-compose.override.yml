@@ -10,3 +10,6 @@ services:
 
   backup:
     build: ./backup
+
+  reverse-proxy:
+    build: ./reverse-proxy

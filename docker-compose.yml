@@ -3,7 +3,6 @@ services:
 
   # FRONTEND - Interface web
   frontend:
-    build: ./frontend                      # Construction de l'image à partir du dossier ./frontend
     image: coquatrixnicolas/backend:latest # Image utilisée
     container_name: frontend               # Nom du conteneur
     expose:
@@ -19,7 +18,6 @@ services:
 
   # BACKEND - API Node.js
   backend:
-    build: ./backend                       # Construction depuis le dossier ./backend
     image: coquatrixnicolas/backend:latest # Image utilisée
     container_name: backend                # Nom du conteneur
     environment:                           # Variables récupérées du fichier .env
@@ -27,7 +25,7 @@ services:
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
       - MYSQL_DATABASE=${MYSQL_DATABASE}
     expose:
-      - ${BACK_PORT}                       # Port de l'API exposé pour les autres services (ex: reverse proxy)
+      - ${BACK_PORT}                       # Port de l'API exposé pour les autres services
     networks:
       - backend-net
       - db-net                             # Connecté à la base de données
@@ -53,7 +51,7 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql          # Volume persistant pour les données MySQL
     ports:
-      - "${DB_PORT}:3306"                  # Port externe pour se connecter à MySQL (via Adminer ou autre)
+      - "${DB_PORT}:3306"                  # Port externe pour se connecter à MySQL (via Adminer)
     networks:
       - db-net
     healthcheck:                           # Vérifie que MySQL est prêt via mysqladmin ping
@@ -65,12 +63,10 @@ services:
 
   # REVERSE PROXY - NGINX
   reverse-proxy:
-    image: nginx:latest
+    image: coquatrixnicolas/reverse-proxy:latest # Image utilisée
     container_name: reverse-proxy
     ports:
       - "${REVERSE_PROXY_PORT}:80"         # Le reverse proxy redirige les requêtes HTTP entrantes
-    volumes:
-      - ./reverse-proxy/nginx.conf:/etc/nginx/nginx.conf:ro # Montre le fichier de config nginx
     depends_on:
       - frontend
       - backend
@@ -79,7 +75,7 @@ services:
       - backend-net
     restart: unless-stopped
 
-  # ADMINER - Interface BDD (optionnel)
+  # ADMINER - Interface BDD
   adminer:
     image: adminer                         # Interface web pour gérer la base de données
     container_name: adminer
@@ -93,7 +89,6 @@ services:
 
   # BACKUP - Script de sauvegarde MySQL
   backup:
-    build: ./backup
     image: coquatrixnicolas/backend:latest
     container_name: mysql-backup
     volumes:
@@ -105,7 +100,7 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
     profiles:
-      - backup                             # N'est exécuté que si profil `backup` activé
+      - backup                             # N'est exécuté que si profil 'backup' activé
     entrypoint: /bin/sh /backup.sh         # Script à exécuter au démarrage
     restart: "no"                          # Ne redémarre pas après exécution (une seule fois)
 

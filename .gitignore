@@ -1,4 +1,6 @@
 .env
-frontend/index.html
-backend/index.js
-backend/node_modules
+frontend
+backend
+backup
+reverse-proxy
+docker-compose.override.yml
