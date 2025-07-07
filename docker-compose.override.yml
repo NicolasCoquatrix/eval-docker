@@ -1,0 +1,12 @@
+
+# Uniquement en dev
+
+services:
+  frontend:
+    build: ./frontend
+
+  backend:
+    build: ./backend
+
+  backup:
+    build: ./backup

@@ -1,0 +1,121 @@
+# Ce fichier orchestre plusieurs services Docker : frontend, backend, db, reverse-proxy, adminer, et backup.
+services:
+
+  # FRONTEND - Interface web
+  frontend:
+    build: ./frontend                      # Construction de l'image à partir du dossier ./frontend
+    image: coquatrixnicolas/backend:latest # Image utilisée
+    container_name: frontend               # Nom du conteneur
+    expose:
+      - 80                                 # Port 80 exposé pour la communication interne
+    networks:
+      - frontend-net                       # Connecté au réseau frontend
+    healthcheck:                           # Vérifie que le conteneur répond sur http://localhost
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped                # Redémarre automatiquement sauf si arrêté manuellement
+
+  # BACKEND - API Node.js
+  backend:
+    build: ./backend                       # Construction depuis le dossier ./backend
+    image: coquatrixnicolas/backend:latest # Image utilisée
+    container_name: backend                # Nom du conteneur
+    environment:                           # Variables récupérées du fichier .env
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+    expose:
+      - ${BACK_PORT}                       # Port de l'API exposé pour les autres services (ex: reverse proxy)
+    networks:
+      - backend-net
+      - db-net                             # Connecté à la base de données
+    depends_on:
+      db:
+        condition: service_healthy         # Le backend attend que la BDD soit prête avant de démarrer
+    healthcheck:                           # Vérifie l'état de l'API sur le endpoint /api
+      test: ["CMD", "curl", "-f", "http://localhost:${BACK_PORT}/api"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # DATABASE - MySQL 8
+  db:
+    image: mysql:8                         # Utilise l'image officielle MySQL
+    container_name: db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql          # Volume persistant pour les données MySQL
+    ports:
+      - "${DB_PORT}:3306"                  # Port externe pour se connecter à MySQL (via Adminer ou autre)
+    networks:
+      - db-net
+    healthcheck:                           # Vérifie que MySQL est prêt via mysqladmin ping
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # REVERSE PROXY - NGINX
+  reverse-proxy:
+    image: nginx:latest
+    container_name: reverse-proxy
+    ports:
+      - "${REVERSE_PROXY_PORT}:80"         # Le reverse proxy redirige les requêtes HTTP entrantes
+    volumes:
+      - ./reverse-proxy/nginx.conf:/etc/nginx/nginx.conf:ro # Montre le fichier de config nginx
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - frontend-net
+      - backend-net
+    restart: unless-stopped
+
+  # ADMINER - Interface BDD (optionnel)
+  adminer:
+    image: adminer                         # Interface web pour gérer la base de données
+    container_name: adminer
+    ports:
+      - "8081:8080"                        # Accessible sur http://localhost:8081
+    networks:
+      - db-net
+    profiles:
+      - admin                              # Ne s'active que si le profil admin est demandé
+    restart: unless-stopped
+
+  # BACKUP - Script de sauvegarde MySQL
+  backup:
+    build: ./backup
+    image: coquatrixnicolas/backend:latest
+    container_name: mysql-backup
+    volumes:
+      - ./backup:/backup                   # Montre le dossier contenant le script / les backups
+    networks:
+      - db-net
+    environment:
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+    profiles:
+      - backup                             # N'est exécuté que si profil `backup` activé
+    entrypoint: /bin/sh /backup.sh         # Script à exécuter au démarrage
+    restart: "no"                          # Ne redémarre pas après exécution (une seule fois)
+
+# VOLUMES - Données MySQL
+volumes:
+  mysql-data:
+
+# NETWORKS - Communication interne
+networks:
+  frontend-net:  # Communication frontend <-> reverse-proxy
+  backend-net:   # Communication backend <-> reverse-proxy
+  db-net:        # Communication backend <-> db (+ adminer / backup)
+
