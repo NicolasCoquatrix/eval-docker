@@ -3,7 +3,7 @@ services:
 
   # FRONTEND - Interface web
   frontend:
-    image: coquatrixnicolas/backend:latest # Image utilisée
+    image: coquatrixnicolas/frontend:latest # Image utilisée
     container_name: frontend               # Nom du conteneur
     expose:
       - 80                                 # Port 80 exposé pour la communication interne
